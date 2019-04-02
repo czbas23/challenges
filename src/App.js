@@ -9,6 +9,36 @@ import { summaryDonations } from './helpers';
 const Card = styled.div`
   margin: 10px;
   border: 1px solid #ccc;
+  width: 500px;
+  display: inline-block;
+  text-align: left;
+  position: relative;
+`;
+
+const CardImg = styled.img`
+  width: 100%;
+  height: 250px;
+  object-fit: cover;
+`;
+
+const CardBody = styled.div`
+  padding: 1rem;
+`;
+
+const CardTitle = styled.div`
+  font-size: 1.2rem;
+`;
+
+const ButtonPrimary = styled.button`
+  border: 1px solid blue;
+  border-radius: 2px;
+  color: blue;
+  background: transparent;
+
+  &:hover{
+    background: blue;
+    color: white;
+  }
 `;
 
 export default connect((state) => state)(
@@ -19,6 +49,7 @@ export default connect((state) => state)(
       this.state = {
         charities: [],
         selectedAmount: 10,
+        currentOverlay: null,
       };
     }
 
@@ -34,7 +65,7 @@ export default connect((state) => state)(
         .then(function(data) {
           self.props.dispatch({
             type: 'UPDATE_TOTAL_DONATE',
-            amount: summaryDonations(data.map((item) => (item.amount))),
+            amount: summaryDonations(data.map((item) => (item.amount || 0))),
           });
         })
     }
@@ -47,17 +78,71 @@ export default connect((state) => state)(
             <input
               type="radio"
               name="payment"
-              onClick={function() {
+              checked={self.state.selectedAmount == amount}
+              onChange={function() {
                 self.setState({ selectedAmount: amount })
-              }} /> {amount}
+              }}
+            /> {amount}
           </label>
         ));
 
+        const Overlay = (props) => {
+          return (
+            self.state.currentOverlay == i ? props.children : ''
+          );
+        }
+
+        const buttonDonate = {
+          float: 'right',
+        };
+
+        const cardOverlay = {
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          width: '100%',
+          height: '100%',
+          background: 'rgba(255, 255, 255, 0.9)',
+          textAlign: 'center',
+          display: 'flex',
+          justifyContent: 'center',
+          flexDirection: 'column',
+        };
+
+        const cardOverlayTimes = {
+          position: 'absolute',
+          top: '5px',
+          right: '5px',
+          cursor: 'pointer',
+        };
+
+        function CardOverlay(props) {
+          return (
+            props.show ?
+              <div style={cardOverlay}>
+                <div style={cardOverlayTimes} onClick={props.times}>x</div>
+                {props.children}
+              </div> : ''
+          );
+        }
+
         return (
           <Card key={i}>
-            <p>{item.name}</p>
-            {payments}
-            <button onClick={handlePay.call(self, item.id, self.state.selectedAmount, item.currency)}>Pay</button>
+            <CardOverlay
+              show={self.state.currentOverlay == i}
+              times={function() {
+                self.setState({ currentOverlay: null })
+              }}
+            >
+              <p>Select the amount to donate ({item.currency})</p>
+              <p>{payments}</p>
+              <p><ButtonPrimary onClick={handlePay.call(self, item.id, self.state.selectedAmount, item.currency)}>Pay</ButtonPrimary></p>
+            </CardOverlay>
+            <CardImg src={'images/' + item.image}></CardImg>
+            <CardBody>
+              <ButtonPrimary style={buttonDonate} onClick={() => handleDonate.call(self, i)}>Donate</ButtonPrimary>
+              <CardTitle>{item.name}</CardTitle>
+            </CardBody>
           </Card>
         );
       });
@@ -72,12 +157,25 @@ export default connect((state) => state)(
       const donate = this.props.donate;
       const message = this.props.message;
 
+      const wrapper = {
+        maxWidth: '1200px',
+        margin: '0px auto',
+        textAlign: 'center',
+      };
+      const h1 = {
+        color: 'gray',
+      };
+      const displayNodate = {
+      };
+      const groupCard = {
+      };
+
       return (
-        <div>
-          <h1>Tamboon React</h1>
-          <p>All donations: {donate}</p>
+        <div style={wrapper}>
+          <h1 style={h1}>Omise Tamboon React {this.state.currentOverlay} {this.state.selectedAmount}</h1>
+          <p style={displayNodate}>All donations: {donate}</p>
           <p style={style}>{message}</p>
-          {cards}
+          <div style={groupCard}>{cards}</div>
         </div>
       );
     }
@@ -89,10 +187,13 @@ function handlePay(id, amount, currency) {
   return function() {
     fetch('http://localhost:3001/payments', {
       method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
       body: `{ "charitiesId": ${id}, "amount": ${amount}, "currency": "${currency}" }`,
     })
       .then(function(resp) { return resp.json(); })
-      .then(function() {
+      .then(function(resp) {
         self.props.dispatch({
           type: 'UPDATE_TOTAL_DONATE',
           amount,
@@ -110,4 +211,11 @@ function handlePay(id, amount, currency) {
         }, 2000);
       });
   }
+}
+
+function handleDonate(i) {
+  this.setState({
+    currentOverlay: i,
+    selectedAmount: 10,
+  });
 }
